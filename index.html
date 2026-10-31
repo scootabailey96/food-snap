@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111111">
+<meta name="robots" content="noindex,nofollow">
+<title>Food Snap</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="queueNote" hidden></div>
+
+<!-- 1. Camera -->
+<section id="s-cam" class="screen active">
+  <div id="cam">
+    <video id="preview" playsinline muted autoplay></video>
+    <div id="camMsg"><div id="camMsgText">Starting camera…</div>
+      <button id="enableCam" hidden>Enable camera</button></div>
+  </div>
+  <div class="bar">
+    <label class="btn pill" for="sysCam">📷 System camera</label>
+    <button id="shutter" class="shutter" aria-label="Take photo"></button>
+    <button id="flip" class="pill" aria-label="Switch camera">🔄</button>
+  </div>
+  <!-- Native camera app (capture=environment); also works if getUserMedia is denied -->
+  <input id="sysCam" type="file" accept="image/*" capture="environment" hidden>
+</section>
+
+<!-- 2. Review -->
+<section id="s-review" class="screen">
+  <div id="review">
+    <img id="shot" alt="Food photo">
+    <textarea id="note" placeholder="Optional note (what, how much, how you felt…)"></textarea>
+    <div class="row">
+      <button id="rec">🎙️ Voice note</button>
+      <span id="recTime" class="pill" hidden>0:00</span>
+      <button id="recClear" hidden>✕</button>
+    </div>
+    <audio id="audioPlayback" controls hidden></audio>
+    <div class="status" id="status"></div>
+    <button id="confirm">✔ Confirm &amp; send</button>
+    <div class="row"><button id="retake">↩ Retake</button></div>
+  </div>
+</section>
+
+<!-- 3. Done -->
+<section id="s-done" class="screen">
+  <div id="done">
+    <div class="big" id="doneIcon">✅</div>
+    <div id="doneText">Sent!</div>
+    <button id="again" style="background:var(--accent);color:#04200f;font-weight:700;font-size:22px;width:100%;min-height:68px">📷 Next photo</button>
+  </div>
+</section>
+
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
