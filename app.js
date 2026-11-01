@@ -92,7 +92,7 @@
   function gotPhoto(blob) {
     if (!current) { // first photo of a new entry
       clearAudio();
-      current = { photos: [], audio: null, takenAt: new Date() };
+      current = { photos: [], audio: null, takenAt: new Date(), singleMeal: false }; // singleMeal: review-screen tick box, always starts unticked
       $("note").value = ""; setStatus("");
     }
     current.photos.push(blob);
@@ -114,6 +114,9 @@
     const full = photos.length >= C.maxPhotos;
     $("photoCount").textContent = photos.length + " / " + C.maxPhotos + " photo" + (photos.length === 1 ? "" : "s");
     $("addCam").hidden = full; $("addGallery").hidden = full;
+    // "All photos are one meal": only shown with 2+ photos; state lives on `current`, so it survives adding/removing photos.
+    $("singleMeal").checked = !!(current && current.singleMeal);
+    $("singleMealRow").hidden = photos.length < 2;
     $("confirm").disabled = sending || !photos.length;
     if (current && totalBytes() > C.maxTotalBytes) setStatus("Photos are large (" + (totalBytes() / 1e6).toFixed(1) + " MB). Remove one if sending fails.", "err");
   }
@@ -172,12 +175,15 @@
   /* ---------------- sending + offline queue ---------------- */
   const pad = (n) => String(n).padStart(2, "0");
   const fmt = (d, tz) => new Intl.DateTimeFormat("en-AU", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false, timeZoneName: "short" }).format(d);
+  // single_meal: "yes"/"no" with 2+ photos (ticked/unticked), "n/a" with a single photo.
+  const singleMealValue = (n, ticked) => (n < 2 ? "n/a" : ticked ? "yes" : "no");
   function buildItem(c, note) {
     const d = c.takenAt, deviceTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
     const stamp = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
     return {
       id: Date.now() + "-" + Math.random().toString(36).slice(2, 7),
       stamp, note,
+      single_meal: singleMealValue(c.photos.length, c.singleMeal),
       iso: d.toISOString(), deviceTz,
       deviceLocal: fmt(d, deviceTz), home: fmt(d, C.homeTimeZone),
       photos: c.photos.slice(), audio: c.audio,
@@ -197,6 +203,8 @@
     f.append("has_voice_note", it.audio ? "yes" : "no");
     const photos = it.photos || (it.photo ? [it.photo] : []); // it.photo = items queued by the old single-photo version
     f.append("photo_count", String(photos.length));
+    // Items queued by older versions have no single_meal: 1 photo -> "n/a", 2+ photos -> "no" (no choice was recorded).
+    f.append("single_meal", it.single_meal || singleMealValue(photos.length, false));
     // Distinct field names photo1..photoN (FormSubmit keys attachments per field); filenames also carry the order.
     photos.forEach((p, i) => f.append("photo" + (i + 1), new File([p], `food-${it.stamp}-photo${i + 1}of${photos.length}.jpg`, { type: "image/jpeg" })));
     if (it.audio) f.append("voice", new File([it.audio], `voice-${it.stamp}.${it.audioExt}`, { type: it.audio.type }));
@@ -253,6 +261,7 @@
   const onPick = (e) => { const fs = Array.from(e.target.files || []); e.target.value = ""; (async () => { for (const f of fs) { if (current && current.photos.length >= C.maxPhotos) break; await fromFile(f); } })(); };
   $("sysCam").addEventListener("change", onPick);
   $("gallery").addEventListener("change", onPick);
+  $("singleMeal").addEventListener("change", (e) => { if (current) current.singleMeal = e.target.checked; });
   $("addCam").addEventListener("click", addMore);
   $("addGallery").addEventListener("click", () => $("gallery").click());
   $("backReview").addEventListener("click", (e) => { e.preventDefault(); toReview(); });
