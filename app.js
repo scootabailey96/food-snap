@@ -2,8 +2,30 @@
   "use strict";
   const C = window.FOODSNAP_CONFIG;
   const $ = (id) => document.getElementById(id);
-  const screens = { cam: $("s-cam"), review: $("s-review"), done: $("s-done") };
+  const screens = { lock: $("s-lock"), cam: $("s-cam"), review: $("s-review"), done: $("s-done") };
   const show = (n) => Object.entries(screens).forEach(([k, el]) => el.classList.toggle("active", k === n));
+
+  /* ---------------- passcode (kept only in this phone's localStorage) ---------------- */
+  const PASS_KEY = "foodsnap.passcode";
+  const getPass = () => { try { return localStorage.getItem(PASS_KEY) || ""; } catch (_) { return ""; } };
+  let lockReturn = null; // screen to go back to when changing passcode
+  function showLock(changing) {
+    stopCamera();
+    lockReturn = changing ? Object.keys(screens).find((k) => screens[k].classList.contains("active")) : null;
+    $("lockTitle").textContent = changing ? "Change passcode" : "Set a passcode";
+    $("lockInput").value = ""; $("lockCancel").hidden = !changing;
+    show("lock"); setTimeout(() => $("lockInput").focus(), 50);
+  }
+  $("lockForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const v = $("lockInput").value.trim(); if (!v) return;
+    try { localStorage.setItem(PASS_KEY, v); } catch (_) { $("lockHint").textContent = "Could not save passcode (storage blocked)."; return; }
+    $("lockInput").value = "";
+    if (lockReturn && lockReturn !== "cam" && lockReturn !== "lock") show(lockReturn); else { show("cam"); startCamera(); }
+    flushQueue();
+  });
+  $("lockCancel").addEventListener("click", () => { if (lockReturn && lockReturn !== "cam") show(lockReturn); else { show("cam"); startCamera(); } });
+  ["changePass", "changePassCam"].forEach((id) => $(id).addEventListener("click", (e) => { e.preventDefault(); showLock(true); }));
 
   let stream = null, facing = "environment", current = null; // current = {photo:Blob, audio:Blob|null}
   let sending = false;
@@ -126,6 +148,7 @@
     const f = new FormData();
     f.append("_subject", `${C.subjectPrefix} ${it.deviceLocal} (${it.deviceTz})`);
     f.append("_captcha", "false");
+    f.append("passcode", getPass()); // read at send time, so queued retries use the current passcode
     f.append("_template", "table");
     f.append("timestamp_utc", it.iso);
     f.append("device_local_time", it.deviceLocal + " [" + it.deviceTz + "]");
@@ -137,6 +160,7 @@
     return f;
   }
   async function post(it) {
+    if (!getPass()) throw new Error("no passcode set");
     const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 90000);
     try {
       const r = await fetch(C.endpoint, { method: "POST", body: toFormData(it), signal: ctl.signal });
@@ -157,7 +181,7 @@
   }
   let flushing = false;
   async function flushQueue() {
-    if (flushing || !navigator.onLine) return; flushing = true;
+    if (flushing || !navigator.onLine || !getPass()) return; flushing = true;
     try { for (const it of await qAll()) { try { await post(it); await qDel(it.id); } catch (_) { break; } } }
     finally { flushing = false; refreshQueueNote(); }
   }
@@ -177,7 +201,7 @@
   function finish(icon, text) { $("doneIcon").textContent = icon; $("doneText").textContent = text; $("doneText").style.whiteSpace = "pre-line"; current = null; clearAudio(); show("done"); }
   function setStatus(t, cls) { const s = $("status"); s.textContent = t; s.className = "status " + (cls || ""); }
 
-  function newShot() { show("cam"); startCamera(); }
+  function newShot() { if (!getPass()) { showLock(false); return; } show("cam"); startCamera(); }
 
   /* ---------------- wire up ---------------- */
   $("shutter").addEventListener("click", takeFrame);
@@ -196,5 +220,6 @@
   window.addEventListener("online", flushQueue);
 
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
-  startCamera(); flushQueue(); refreshQueueNote();
+  if (getPass()) { show("cam"); startCamera(); flushQueue(); } else showLock(false);
+  refreshQueueNote();
 })();

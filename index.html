@@ -14,8 +14,20 @@
 <body>
 <div id="queueNote" hidden></div>
 
+<!-- 0. Passcode -->
+<section id="s-lock" class="screen">
+  <form id="lockForm" autocomplete="off">
+    <div class="big">🔒</div>
+    <div id="lockTitle">Set a passcode</div>
+    <div class="status" id="lockHint">Stored on this phone only. It is attached to every photo you send.</div>
+    <input id="lockInput" type="password" inputmode="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Passcode" required>
+    <button id="lockSave" type="submit" class="primary">Save passcode</button>
+    <button id="lockCancel" type="button" hidden>Cancel</button>
+  </form>
+</section>
+
 <!-- 1. Camera -->
-<section id="s-cam" class="screen active">
+<section id="s-cam" class="screen">
   <div id="cam">
     <video id="preview" playsinline muted autoplay></video>
     <div id="camMsg"><div id="camMsgText">Starting camera…</div>
@@ -26,6 +38,7 @@
     <button id="shutter" class="shutter" aria-label="Take photo"></button>
     <button id="flip" class="pill" aria-label="Switch camera">🔄</button>
   </div>
+  <a href="#" id="changePassCam" class="link">Change passcode</a>
   <!-- Native camera app (capture=environment); also works if getUserMedia is denied -->
   <input id="sysCam" type="file" accept="image/*" capture="environment" hidden>
 </section>
@@ -44,6 +57,7 @@
     <div class="status" id="status"></div>
     <button id="confirm">✔ Confirm &amp; send</button>
     <div class="row"><button id="retake">↩ Retake</button></div>
+    <a href="#" id="changePass" class="link">Change passcode</a>
   </div>
 </section>
 

@@ -16,6 +16,9 @@ voice note attached, plus UTC / device-local / Perth timestamps.
 - Offline/failed sends are queued in IndexedDB and retried on next open / when back online.
 - Service worker caches the app shell so it opens instantly and offline.
 
+## Passcode
+On first launch the app asks for a passcode, stores it in this phone's localStorage and sends it as the `passcode` form field with every submission (queued retries read the current value at send time). "Change passcode" link is on the camera and review screens. The passcode is **not** in the repo; FormSubmit cannot enforce it, so it is a tag for the inbox-watch routine to check (drop emails whose `passcode` row doesn't match). `.passcode.sha256` (local only, never upload) holds the SHA-256 of the expected value. `send-test.sh` sends `$FOOD_SNAP_PASSCODE` if set.
+
 ## Install on Pixel (Chrome)
 1. Open the hosted HTTPS URL in Chrome. 2. Allow Camera (and Mic when you first record).
 3. ⋮ menu → **Add to Home screen** / **Install app**. 4. Launch from the icon.
