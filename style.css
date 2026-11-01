@@ -14,7 +14,11 @@ button,.btn{font:inherit;color:var(--fg);background:#2b2b2b;border:0;border-radi
 button:disabled{opacity:.5}
 .pill{background:#2b2b2b;border-radius:999px;padding:12px 16px;font-size:14px}
 #review{display:flex;flex-direction:column;overflow-y:auto;padding:12px calc(12px + env(safe-area-inset-right)) calc(20px + env(safe-area-inset-bottom)) 12px;gap:12px;flex:1}
-#shot{width:100%;max-height:42dvh;object-fit:contain;background:#000;border-radius:12px}
+#thumbs{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:8px}
+.thumb{position:relative;aspect-ratio:1;background:#000;border-radius:10px;overflow:hidden}
+.thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.thumbX{position:absolute;top:4px;right:4px;width:36px;height:36px;min-height:0;padding:0;border-radius:50%;background:#000b;color:#fff;font-size:18px;line-height:1}
+#addCam,#addGallery{flex:1}
 textarea{width:100%;min-height:84px;border-radius:12px;border:1px solid #333;background:#1b1b1b;color:var(--fg);padding:12px;font:inherit;resize:vertical}
 .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 #rec.recording{background:var(--danger);animation:pulse 1s infinite}

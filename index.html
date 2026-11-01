@@ -35,19 +35,28 @@
   </div>
   <div class="bar">
     <label class="btn pill" for="sysCam">📷 System camera</label>
+    <label class="btn pill" for="gallery">🖼 Gallery</label>
     <button id="shutter" class="shutter" aria-label="Take photo"></button>
     <button id="flip" class="pill" aria-label="Switch camera">🔄</button>
   </div>
+  <a href="#" id="backReview" class="link" hidden>← Back to review</a>
   <a href="#" id="changePassCam" class="link">Change passcode</a>
   <!-- Native camera app (capture=environment); also works if getUserMedia is denied -->
   <input id="sysCam" type="file" accept="image/*" capture="environment" hidden>
+  <!-- Gallery picker (no capture attr, so the phone offers its photo library) -->
+  <input id="gallery" type="file" accept="image/*" multiple hidden>
 </section>
 
 <!-- 2. Review -->
 <section id="s-review" class="screen">
   <div id="review">
-    <img id="shot" alt="Food photo">
-    <textarea id="note" placeholder="Optional note (what, how much, how you felt…)"></textarea>
+    <div class="row between"><span id="photoCount" class="pill">0 / 6 photos</span></div>
+    <div id="thumbs"></div>
+    <div class="row">
+      <button id="addCam" type="button">📷 Add another</button>
+      <button id="addGallery" type="button">🖼 From gallery</button>
+    </div>
+    <textarea id="note" placeholder="Optional note: one meal (dish + label) or list items. What, how much, how you felt…"></textarea>
     <div class="row">
       <button id="rec">🎙️ Voice note</button>
       <span id="recTime" class="pill" hidden>0:00</span>
@@ -56,7 +65,7 @@
     <audio id="audioPlayback" controls hidden></audio>
     <div class="status" id="status"></div>
     <button id="confirm">✔ Confirm &amp; send</button>
-    <div class="row"><button id="retake">↩ Retake</button></div>
+    <div class="row"><button id="retake">↩ Start over</button></div>
     <a href="#" id="changePass" class="link">Change passcode</a>
   </div>
 </section>
@@ -66,7 +75,7 @@
   <div id="done">
     <div class="big" id="doneIcon">✅</div>
     <div id="doneText">Sent!</div>
-    <button id="again" style="background:var(--accent);color:#04200f;font-weight:700;font-size:22px;width:100%;min-height:68px">📷 Next photo</button>
+    <button id="again" style="background:var(--accent);color:#04200f;font-weight:700;font-size:22px;width:100%;min-height:68px">📷 Next meal</button>
   </div>
 </section>
 

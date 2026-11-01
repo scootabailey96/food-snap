@@ -27,12 +27,13 @@
   $("lockCancel").addEventListener("click", () => { if (lockReturn && lockReturn !== "cam") show(lockReturn); else { show("cam"); startCamera(); } });
   ["changePass", "changePassCam"].forEach((id) => $(id).addEventListener("click", (e) => { e.preventDefault(); showLock(true); }));
 
-  let stream = null, facing = "environment", current = null; // current = {photo:Blob, audio:Blob|null}
-  let sending = false;
+  let stream = null, facing = "environment", current = null; // current = {photos:Blob[], audio:Blob|null, takenAt:Date}
+  let sending = false, thumbUrls = [];
 
   /* ---------------- camera ---------------- */
   async function startCamera() {
     stopCamera();
+    $("backReview").hidden = !current;
     const msg = $("camMsg"), txt = $("camMsgText");
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       msg.hidden = false; txt.textContent = "Live preview not available. Use the System camera button."; return;
@@ -54,36 +55,75 @@
   }
   function stopCamera() { if (stream) { stream.getTracks().forEach((t) => t.stop()); stream = null; } }
 
+  // Compress to JPEG: start at maxEdge/jpegQuality, then step quality and size down until under the per-photo byte cap.
+  const encode = (cv, q) => new Promise((res, rej) => cv.toBlob((b) => (b ? res(b) : rej(new Error("encode failed"))), "image/jpeg", q));
   async function toJpeg(source, w, h) {
-    const scale = Math.min(1, C.maxEdge / Math.max(w, h));
-    const cw = Math.round(w * scale), ch = Math.round(h * scale);
-    const cv = document.createElement("canvas"); cv.width = cw; cv.height = ch;
-    cv.getContext("2d").drawImage(source, 0, 0, cw, ch);
-    return await new Promise((res, rej) => cv.toBlob((b) => (b ? res(b) : rej(new Error("encode failed"))), "image/jpeg", C.jpegQuality));
+    let edge = C.maxEdge, blob;
+    for (let pass = 0; pass < 5; pass++) {
+      const scale = Math.min(1, edge / Math.max(w, h));
+      const cv = document.createElement("canvas"); cv.width = Math.round(w * scale); cv.height = Math.round(h * scale);
+      cv.getContext("2d").drawImage(source, 0, 0, cv.width, cv.height);
+      for (const q of [C.jpegQuality, 0.7, 0.6, 0.5]) {
+        blob = await encode(cv, q);
+        if (blob.size <= C.maxPhotoBytes) return blob;
+      }
+      edge = Math.round(edge * 0.8); // still too big: shrink dimensions and retry
+    }
+    return blob;
   }
+  const totalBytes = () => (current ? current.photos.reduce((n, b) => n + b.size, 0) + (current.audio ? current.audio.size : 0) : 0);
   async function takeFrame() {
     const v = $("preview");
     if (!stream || !v.videoWidth) return;
+    if (current && current.photos.length >= C.maxPhotos) { toReview(); return; }
     const blob = await toJpeg(v, v.videoWidth, v.videoHeight);
     gotPhoto(blob);
   }
   async function fromFile(file) {
     if (!file) return;
+    if (current && current.photos.length >= C.maxPhotos) { toReview(); return; }
     let bmp;
     try { bmp = await createImageBitmap(file, { imageOrientation: "from-image" }); }
-    catch (_) { bmp = await createImageBitmap(file); }
+    catch (_) { try { bmp = await createImageBitmap(file); } catch (e) { setStatus("Could not read that image", "err"); toReview(); return; } }
     const blob = await toJpeg(bmp, bmp.width, bmp.height);
     if (bmp.close) bmp.close();
     gotPhoto(blob);
   }
   function gotPhoto(blob) {
-    clearAudio();
-    current = { photo: blob, audio: null, takenAt: new Date() };
-    $("note").value = ""; setStatus("");
-    if ($("shot").src) URL.revokeObjectURL($("shot").src);
-    $("shot").src = URL.createObjectURL(blob);
-    stopCamera(); show("review");
+    if (!current) { // first photo of a new entry
+      clearAudio();
+      current = { photos: [], audio: null, takenAt: new Date() };
+      $("note").value = ""; setStatus("");
+    }
+    current.photos.push(blob);
+    toReview();
   }
+  function toReview() { stopCamera(); renderThumbs(); show("review"); }
+  function renderThumbs() {
+    const box = $("thumbs"); box.textContent = "";
+    thumbUrls.forEach((u) => URL.revokeObjectURL(u)); thumbUrls = [];
+    const photos = current ? current.photos : [];
+    photos.forEach((b, i) => {
+      const u = URL.createObjectURL(b); thumbUrls.push(u);
+      const d = document.createElement("div"); d.className = "thumb";
+      const im = document.createElement("img"); im.src = u; im.alt = "Photo " + (i + 1);
+      const x = document.createElement("button"); x.type = "button"; x.className = "thumbX"; x.textContent = "✕"; x.setAttribute("aria-label", "Remove photo " + (i + 1));
+      x.addEventListener("click", () => removePhoto(i));
+      d.append(im, x); box.append(d);
+    });
+    const full = photos.length >= C.maxPhotos;
+    $("photoCount").textContent = photos.length + " / " + C.maxPhotos + " photo" + (photos.length === 1 ? "" : "s");
+    $("addCam").hidden = full; $("addGallery").hidden = full;
+    $("confirm").disabled = sending || !photos.length;
+    if (current && totalBytes() > C.maxTotalBytes) setStatus("Photos are large (" + (totalBytes() / 1e6).toFixed(1) + " MB). Remove one if sending fails.", "err");
+  }
+  function removePhoto(i) {
+    if (!current) return;
+    current.photos.splice(i, 1);
+    renderThumbs();
+    if (!current.photos.length) { setStatus("No photos left: add one to continue"); addMore(); }
+  }
+  function addMore() { show("cam"); startCamera(); }
 
   /* ---------------- voice note ---------------- */
   let rec = null, recChunks = [], recTimer = null, recStart = 0, micStream = null, audioUrl = null;
@@ -140,7 +180,7 @@
       stamp, note,
       iso: d.toISOString(), deviceTz,
       deviceLocal: fmt(d, deviceTz), home: fmt(d, C.homeTimeZone),
-      photo: c.photo, audio: c.audio,
+      photos: c.photos.slice(), audio: c.audio,
       audioExt: c.audio ? (c.audio.type.includes("mp4") ? "m4a" : c.audio.type.includes("ogg") ? "ogg" : "webm") : null
     };
   }
@@ -155,7 +195,10 @@
     f.append("home_time_" + C.homeTimeZone.split("/").pop(), it.home);
     f.append("note", it.note || "(no note)");
     f.append("has_voice_note", it.audio ? "yes" : "no");
-    f.append("photo", new File([it.photo], `food-${it.stamp}.jpg`, { type: "image/jpeg" }));
+    const photos = it.photos || (it.photo ? [it.photo] : []); // it.photo = items queued by the old single-photo version
+    f.append("photo_count", String(photos.length));
+    // Distinct field names photo1..photoN (FormSubmit keys attachments per field); filenames also carry the order.
+    photos.forEach((p, i) => f.append("photo" + (i + 1), new File([p], `food-${it.stamp}-photo${i + 1}of${photos.length}.jpg`, { type: "image/jpeg" })));
     if (it.audio) f.append("voice", new File([it.audio], `voice-${it.stamp}.${it.audioExt}`, { type: it.audio.type }));
     return f;
   }
@@ -177,7 +220,7 @@
   const qDel = (id) => tx("readwrite", (s) => s.delete(id));
   const qAll = () => tx("readonly", (s) => s.getAll());
   async function refreshQueueNote() {
-    try { const n = (await qAll()).length; const el = $("queueNote"); el.hidden = !n; el.textContent = n ? `${n} photo${n > 1 ? "s" : ""} waiting to send (no signal?) — will retry automatically` : ""; } catch (_) {}
+    try { const n = (await qAll()).length; const el = $("queueNote"); el.hidden = !n; el.textContent = n ? `${n} entr${n > 1 ? "ies" : "y"} waiting to send (no signal?) — will retry automatically` : ""; } catch (_) {}
   }
   let flushing = false;
   async function flushQueue() {
@@ -187,7 +230,7 @@
   }
 
   async function confirm() {
-    if (sending || !current) return;
+    if (sending || !current || !current.photos.length) return;
     sending = true; $("confirm").disabled = true; $("retake").disabled = true; setStatus("Sending…");
     const it = buildItem(current, $("note").value.trim());
     try {
@@ -196,18 +239,23 @@
     } catch (e) {
       try { await qPut(it); finish("📥", "No connection / send failed — saved on phone, will retry automatically.\n(" + e.message + ")"); }
       catch (_) { setStatus("Send failed: " + e.message + ". Try again.", "err"); }
-    } finally { sending = false; $("confirm").disabled = false; $("retake").disabled = false; refreshQueueNote(); }
+    } finally { sending = false; $("confirm").disabled = !(current && current.photos.length); $("retake").disabled = false; refreshQueueNote(); }
   }
-  function finish(icon, text) { $("doneIcon").textContent = icon; $("doneText").textContent = text; $("doneText").style.whiteSpace = "pre-line"; current = null; clearAudio(); show("done"); }
+  function finish(icon, text) { $("doneIcon").textContent = icon; $("doneText").textContent = text; $("doneText").style.whiteSpace = "pre-line"; current = null; clearAudio(); renderThumbs(); show("done"); }
   function setStatus(t, cls) { const s = $("status"); s.textContent = t; s.className = "status " + (cls || ""); }
 
-  function newShot() { if (!getPass()) { showLock(false); return; } show("cam"); startCamera(); }
+  function newShot() { if (current) { current = null; clearAudio(); } if (!getPass()) { showLock(false); return; } show("cam"); startCamera(); }
 
   /* ---------------- wire up ---------------- */
   $("shutter").addEventListener("click", takeFrame);
   $("enableCam").addEventListener("click", startCamera);
   $("flip").addEventListener("click", () => { facing = facing === "environment" ? "user" : "environment"; startCamera(); });
-  $("sysCam").addEventListener("change", (e) => { fromFile(e.target.files[0]); e.target.value = ""; });
+  const onPick = (e) => { const fs = Array.from(e.target.files || []); e.target.value = ""; (async () => { for (const f of fs) { if (current && current.photos.length >= C.maxPhotos) break; await fromFile(f); } })(); };
+  $("sysCam").addEventListener("change", onPick);
+  $("gallery").addEventListener("change", onPick);
+  $("addCam").addEventListener("click", addMore);
+  $("addGallery").addEventListener("click", () => $("gallery").click());
+  $("backReview").addEventListener("click", (e) => { e.preventDefault(); toReview(); });
   $("rec").addEventListener("click", toggleRec);
   $("recClear").addEventListener("click", clearAudio);
   $("confirm").addEventListener("click", confirm);

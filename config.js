@@ -6,5 +6,8 @@ window.FOODSNAP_CONFIG = {
   homeTimeZone: "Australia/Perth",
   maxEdge: 1600,
   jpegQuality: 0.82,
+  maxPhotos: 6,
+  maxPhotoBytes: 700000,   // per-photo cap; compressor lowers quality/size until under this (6 x 700 KB + voice stays well under FormSubmit's 10 MB)
+  maxTotalBytes: 8000000,  // warn above this
   maxAudioSeconds: 120
 };

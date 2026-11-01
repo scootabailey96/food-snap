@@ -1,7 +1,7 @@
 # Food Snap (PWA)
 
 Open from the Pixel home screen → camera → snap → optional note + voice memo → big **Confirm & send** →
-email lands in `scoota@mail.grokbot.com` (subject starts `[FOOD-SNAP]`) with the photo (JPEG ≤1600px) and
+email lands in `scoota@mail.grokbot.com` (subject starts `[FOOD-SNAP]`) with up to 6 photos (JPEG ≤1600px, each ≤~700 KB) and
 voice note attached, plus UTC / device-local / Perth timestamps.
 
 ## How it works
@@ -9,7 +9,8 @@ voice note attached, plus UTC / device-local / Perth timestamps.
 - Camera: live `getUserMedia` preview (rear camera) with a shutter button. Fallback button "System camera" uses
   `<input type=file accept=image/* capture=environment>`. Chrome blocks auto-opening a file picker without a tap, so the
   app tries it only if the live preview is denied; the live preview is the "straight to camera" path.
-- Photo is drawn to a canvas, scaled to 1600px long edge, JPEG q0.82 (~200-500 KB).
+- Multi-photo: up to 6 per entry (camera shutter, System camera, or Gallery; add one at a time, thumbnails with ✕ remove). Each is drawn to a canvas at 1600px long edge, JPEG q0.82, and re-compressed (lower quality, then smaller size) until ≤700 KB.
+- Email attachment field names: `photo1`..`photoN` (+ `photo_count`), filenames `food-<stamp>-photo<i>of<N>.jpg`; voice is `voice` / `voice-<stamp>.<ext>`. Older queued single-photo items still send as `photo`.
 - Voice note: `MediaRecorder` (webm/opus, 32 kbps, max 2 min).
 - Send: multipart `fetch` POST to FormSubmit.co (free email relay, no account). The endpoint in `config.js` is a
   random alias for the mailbox, not a credential. Use the **non-AJAX** endpoint: `/ajax/` silently drops attachments (tested).
